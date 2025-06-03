@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RFID Logs</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body {
+      font-family: 'Segoe UI', 'Arial', sans-serif;
+      margin: 20px;
+      background: #f9f9f9;
+    }
+    h1 {
+      text-align: center;
+      margin-bottom: 10px;
+    }
+    .menu {
+      display: flex;
+      justify-content: center;
+      margin-bottom: 20px;
+    }
+    .card {
+      background: #ffffff;
+      padding: 16px;
+      border-radius: 12px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+      text-decoration: none;
+      color: black;
+      width: 200px;
+      text-align: center;
+      transition: transform 0.2s;
+    }
+    .card:hover {
+      transform: scale(1.05);
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 20px;
+      background: white;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+    }
+    th, td {
+      border: 1px solid #ccc;
+      padding: 10px;
+      text-align: center;
+    }
+    th {
+      background-color: #e0e0e0;
+    }
+    canvas {
+      max-width: 100%;
+      height: auto;
+      margin-top: 40px;
+    }
+  </style>
+</head>
+<body>
+  <h1>RFID 刷卡紀錄</h1>
+
+  <div class="menu">
+    <a href="/index.html" class="card">
+      <h2>回主頁</h2>
+      <p>RFID 系統首頁</p>
+    </a>
+  </div>
+
+ <!-- 只顯示有改動的部分 -->
+<table id="logTable">
+  <thead>
+    <tr>
+      <th>時間</th>
+      <th>UID</th>
+      <th>狀態</th>
+      <th>驗證結果</th> <!-- ✅ 新增 -->
+      <th>設備</th>
+      <th>設備時間</th>
+    </tr>
+  </thead>
+  <tbody></tbody>
+</table>
+
+<script>
+  const logTableBody = document.querySelector("#logTable tbody");
+  const socket = new WebSocket(`ws://${location.host}`);
+  let statsChart;
+
+  socket.onmessage = (event) => {
+    const msg = JSON.parse(event.data);
+    if (msg.type === "new_log") {
+      addRow(msg.data);
+      updateStats?.();
+    }
+  };
+
+  socket.onerror = (error) => {
+    console.error("WebSocket 錯誤：", error);
+  };
+
+  function formatAuth(auth) {
+    return auth === 1 || auth === "1" ? "✅ 通過" : "❌ 拒絕";
+  }
+
+  function addRow(log) {
+    const row = document.createElement("tr");
+    row.innerHTML = `
+      <td>${log.server_time || log.time || "N/A"}</td>
+      <td>${log.uid}</td>
+      <td>${log.direction}</td>
+      <td>${formatAuth(log.authorized)}</td> <!-- ✅ 顯示授權結果 -->
+      <td>${log.device_name || log.device || "未知設備"}</td>
+      <td>${log.device_time}</td>
+    `;
+    logTableBody.prepend(row);
+  }
+
+  fetch("/api/logs")
+    .then(res => res.json())
+    .then(data => {
+      data.reverse().forEach(addRow);
+    })
+    .catch(err => {
+      console.error("載入紀錄失敗：", err);
+      alert("無法載入刷卡紀錄，請確認後端是否正常");
+    });
+</script>
+
